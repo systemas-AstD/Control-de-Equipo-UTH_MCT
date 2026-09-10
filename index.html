@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de equipo</title>
+</head>
+<body>
+<style>
+  #proy-root {
+    --ink: #1F3D2E;
+    --ink-soft: #4C6357;
+    --paper: #F6F8F4;
+    --paper-line: #D3E0D3;
+    --amber: #2F7D4F;
+    --amber-bg: #DCEEE0;
+    --sage: #6E8A76;
+    --sage-bg: #E4EAE2;
+    --danger: #A64B3E;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  #proy-root * { box-sizing: border-box; }
+
+  .proy-header {
+    padding: 20px 18px 14px;
+    border-bottom: 2px solid var(--ink);
+  }
+  .proy-eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    margin: 0 0 2px;
+  }
+  .proy-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .proy-sub {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 6px 0 0;
+    line-height: 1.4;
+  }
+  .proy-sync-status {
+    font-size: 11px;
+    margin: 8px 0 0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+    font-weight: 600;
+  }
+  .proy-sync-status.saved {
+    color: var(--sage);
+    background: var(--sage-bg);
+  }
+  .proy-sync-status.saving {
+    color: var(--ink-soft);
+    background: var(--paper-line);
+  }
+  .proy-sync-status.error {
+    color: var(--danger);
+    background: #FBEAE7;
+  }
+
+  .proy-form {
+    padding: 16px 18px;
+    background: #fff;
+    border-bottom: 1px dashed var(--paper-line);
+  }
+  .proy-field {
+    margin-bottom: 10px;
+  }
+  .proy-field label {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+  .proy-field input {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1.5px solid var(--paper-line);
+    border-radius: 6px;
+    font-size: 14px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .proy-field input:focus {
+    outline: none;
+    border-color: var(--ink);
+  }
+  .proy-row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .proy-btn {
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 6px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .proy-btn:active { opacity: 0.85; }
+  .proy-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .proy-list-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 14px 18px 6px;
+  }
+  .proy-list-head h2 {
+    font-size: 13px;
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    margin: 0;
+    font-weight: 600;
+  }
+  .proy-count {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .proy-list {
+    padding: 0 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .proy-card {
+    border: 1.5px solid var(--paper-line);
+    border-left: 4px solid var(--amber);
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #fff;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .proy-card.returned {
+    border-left-color: var(--sage);
+    background: var(--sage-bg);
+    opacity: 0.85;
+  }
+  .proy-check {
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    accent-color: var(--sage);
+    flex-shrink: 0;
+  }
+  .proy-info { flex: 1; min-width: 0; }
+  .proy-who {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+  }
+  .proy-meta {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.5;
+  }
+  .proy-status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--amber-bg);
+    color: var(--amber);
+    display: inline-block;
+    margin-top: 4px;
+  }
+  .proy-card.returned .proy-status {
+    background: transparent;
+    color: var(--sage);
+    padding-left: 0;
+  }
+  .proy-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .proy-mini-btn {
+    font-size: 11px;
+    border: 1px solid var(--paper-line);
+    background: transparent;
+    color: var(--ink-soft);
+    padding: 3px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .proy-mini-btn.danger { color: var(--danger); border-color: var(--danger); }
+
+  .proy-receiver-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1.5px dashed var(--paper-line);
+    border-radius: 5px;
+    font-size: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    margin-top: 4px;
+  }
+  .proy-receiver-input:focus {
+    outline: none;
+    border-color: var(--amber);
+    border-style: solid;
+  }
+  .proy-received {
+    color: var(--sage);
+    font-weight: 600;
+  }
+  .proy-receiver-input.proy-input-error {
+    border-color: var(--danger);
+    border-style: solid;
+    background: #FBEAE7;
+  }
+  .proy-receiver-error {
+    color: var(--danger);
+    font-size: 11px;
+    margin: 3px 0 0;
+    display: none;
+  }
+  .proy-receiver-error.show {
+    display: block;
+  }
+
+  .proy-empty {
+    padding: 30px 18px;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  .proy-loading {
+    padding: 30px 18px;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+</style>
+
+<div id="proy-root">
+  <div class="proy-header">
+    <p class="proy-eyebrow">Bitácora</p>
+    <h1 class="proy-title">Control de equipo</h1>
+    <p class="proy-sub">Registra cada préstamo y márcalo como devuelto cuando regrese. Todo el equipo ve la misma lista.</p>
+    <p class="proy-sync-status" id="proy-sync-status"></p>
+  </div>
+
+  <div class="proy-form">
+    <div class="proy-field">
+      <label for="proy-borrower">¿A quién se le presta el material?</label>
+      <input id="proy-borrower" type="text" placeholder="Nombre del integrante" />
+    </div>
+    <div class="proy-row2">
+      <div class="proy-field">
+        <label for="proy-lender">Quién presta</label>
+        <input id="proy-lender" type="text" placeholder="Nombre" />
+      </div>
+      <div class="proy-field">
+        <label for="proy-projector">Equipo</label>
+        <input id="proy-projector" type="text" placeholder="Ej. Proyector 2, bocina, laptop…" />
+      </div>
+    </div>
+    <button class="proy-btn" id="proy-add-btn">Registrar préstamo</button>
+  </div>
+
+  <div class="proy-list-head">
+    <h2>Préstamos</h2>
+    <span class="proy-count" id="proy-count"></span>
+  </div>
+
+  <div style="padding: 0 18px 4px;">
+    <button class="proy-mini-btn" id="proy-export-btn" style="width: 100%; padding: 8px; font-size: 12px;">Descargar en Excel</button>
+  </div>
+
+  <div id="proy-list-container">
+    <div class="proy-loading">Cargando registros…</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function() {
+  const root = document.getElementById('proy-root');
+  const listContainer = document.getElementById('proy-list-container');
+  const countEl = document.getElementById('proy-count');
+  const addBtn = document.getElementById('proy-add-btn');
+  const exportBtn = document.getElementById('proy-export-btn');
+  const borrowerInput = document.getElementById('proy-borrower');
+  const lenderInput = document.getElementById('proy-lender');
+  const projectorInput = document.getElementById('proy-projector');
+
+  // 👉 Pega aquí la URL de tu Google Apps Script publicado como Web App
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxheBA-w7SKNejyrUte-BLXm8yK9HPu_k1Eq6anifwUmmxYB0RVb7si3qi9Y-H4oi-WMQ/exec';
+
+  const STORAGE_KEY = 'loans-list';
+  const syncStatusEl = document.getElementById('proy-sync-status');
+  let loans = [];
+  let hasUnsavedChanges = false;
+  let retryTimer = null;
+
+  function fmtDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function apiGetLoans() {
+    const res = await fetch(APPS_SCRIPT_URL);
+    if (!res.ok) throw new Error('network');
+    return await res.json();
+  }
+
+  async function apiSaveLoans(data) {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('network');
+    return await res.json();
+  }
+
+  async function loadLoans() {
+    try {
+      loans = await apiGetLoans();
+      setSyncStatus('saved');
+    } catch (e) {
+      loans = [];
+      setSyncStatus('error');
+    }
+    render();
+  }
+
+  function setSyncStatus(state) {
+    syncStatusEl.classList.remove('saved', 'saving', 'error');
+    if (state === 'saved') {
+      syncStatusEl.textContent = 'Guardado ✓';
+      syncStatusEl.classList.add('saved');
+    } else if (state === 'saving') {
+      syncStatusEl.textContent = 'Guardando…';
+      syncStatusEl.classList.add('saving');
+    } else if (state === 'error') {
+      syncStatusEl.textContent = 'Sin conexión — reintentando…';
+      syncStatusEl.classList.add('error');
+    }
+  }
+
+  async function saveLoans() {
+    setSyncStatus('saving');
+    try {
+      await apiSaveLoans(loans);
+      hasUnsavedChanges = false;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      setSyncStatus('saved');
+    } catch (e) {
+      hasUnsavedChanges = true;
+      setSyncStatus('error');
+      scheduleRetry();
+    }
+  }
+
+  function scheduleRetry() {
+    if (retryTimer) return;
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (hasUnsavedChanges) saveLoans();
+    }, 6000);
+  }
+
+  window.addEventListener('online', () => {
+    if (hasUnsavedChanges) saveLoans();
+  });
+
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  function render() {
+    const visible = loans.filter(l => !l.deleted);
+    if (visible.length === 0) {
+      listContainer.innerHTML = '<div class="proy-empty">Aún no hay préstamos registrados. Agrega el primero arriba.</div>';
+      countEl.textContent = '';
+      return;
+    }
+    const pending = visible.filter(l => !l.returned).length;
+    countEl.textContent = pending > 0 ? pending + ' pendiente(s)' : 'todo devuelto';
+
+    const sorted = [...visible].sort((a, b) => {
+      if (a.returned !== b.returned) return a.returned ? 1 : -1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    listContainer.innerHTML = '<div class="proy-list">' + sorted.map(loan => {
+      const proj = loan.projector ? ' · ' + escapeHtml(loan.projector) : '';
+      return `
+        <div class="proy-card ${loan.returned ? 'returned' : ''}" data-id="${loan.id}">
+          <input type="checkbox" class="proy-check" ${loan.returned ? 'checked' : ''} data-id="${loan.id}" />
+          <div class="proy-info">
+            <p class="proy-who">${escapeHtml(loan.borrower)}</p>
+            <p class="proy-meta">Presta: ${escapeHtml(loan.lender)}${proj}</p>
+            <p class="proy-meta">${fmtDate(loan.createdAt)}</p>
+            ${loan.returned
+              ? `<p class="proy-meta proy-received">Recibió: ${escapeHtml(loan.receivedBy || 'Sin especificar')} · ${fmtDate(loan.returnedAt)}</p>`
+              : `<input type="text" class="proy-receiver-input" data-receiver-for="${loan.id}" placeholder="Nombre de quien recibe al devolver" /><p class="proy-receiver-error" data-error-for="${loan.id}">Falta ingresar el nombre de quien recibe.</p>`
+            }
+            <span class="proy-status">${loan.returned ? 'Devuelto' : 'Pendiente'}</span>
+            <div class="proy-actions">
+              <button class="proy-mini-btn danger" data-delete="${loan.id}">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('') + '</div>';
+
+    listContainer.querySelectorAll('.proy-check').forEach(cb => {
+      cb.addEventListener('change', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const loan = loans.find(l => l.id === id);
+        if (loan) {
+          if (e.target.checked) {
+            const input = listContainer.querySelector(`[data-receiver-for="${id}"]`);
+            const errorEl = listContainer.querySelector(`[data-error-for="${id}"]`);
+            const receiverName = input ? input.value.trim() : '';
+            if (!receiverName) {
+              e.target.checked = false;
+              if (input) input.classList.add('proy-input-error');
+              if (errorEl) errorEl.classList.add('show');
+              if (input) input.focus();
+              return;
+            }
+            loan.receivedBy = receiverName;
+            loan.returned = true;
+            loan.returnedAt = new Date().toISOString();
+          } else {
+            loan.returned = false;
+            loan.returnedAt = null;
+            loan.receivedBy = null;
+          }
+          await saveLoans();
+          render();
+        }
+      });
+    });
+
+    listContainer.querySelectorAll('.proy-receiver-input').forEach(input => {
+      input.addEventListener('input', () => {
+        const id = input.getAttribute('data-receiver-for');
+        const errorEl = listContainer.querySelector(`[data-error-for="${id}"]`);
+        input.classList.remove('proy-input-error');
+        if (errorEl) errorEl.classList.remove('show');
+      });
+    });
+
+    listContainer.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.target.getAttribute('data-delete');
+        const loan = loans.find(l => l.id === id);
+        const nombre = loan ? loan.borrower : 'este registro';
+        const confirmado = window.confirm(`¿Quitar de la lista el préstamo de "${nombre}"? Seguirá guardado como historial en la hoja de cálculo.`);
+        if (!confirmado || !loan) return;
+        loan.deleted = true;
+        await saveLoans();
+        render();
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  addBtn.addEventListener('click', async () => {
+    const borrower = borrowerInput.value.trim();
+    const lender = lenderInput.value.trim();
+    const projector = projectorInput.value.trim();
+    if (!borrower || !lender) {
+      borrowerInput.style.borderColor = borrower ? 'var(--paper-line)' : 'var(--danger)';
+      lenderInput.style.borderColor = lender ? 'var(--paper-line)' : 'var(--danger)';
+      return;
+    }
+    const newLoan = {
+      id: 'loan_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      borrower, lender, projector,
+      returned: false,
+      returnedAt: null,
+      receivedBy: null,
+      deleted: false,
+      createdAt: new Date().toISOString()
+    };
+    loans.push(newLoan);
+    await saveLoans();
+    borrowerInput.value = '';
+    lenderInput.value = '';
+    projectorInput.value = '';
+    render();
+  });
+
+  exportBtn.addEventListener('click', () => {
+    const activos = loans.filter(l => !l.deleted);
+    if (activos.length === 0) {
+      alert('Aún no hay registros para exportar.');
+      return;
+    }
+    if (typeof XLSX === 'undefined') {
+      alert('No se pudo cargar la librería de Excel. Revisa tu conexión e intenta de nuevo.');
+      return;
+    }
+    const rows = [...activos]
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      .map(loan => ({
+        'Equipo': loan.projector || '',
+        'Prestado a': loan.borrower,
+        'Presta': loan.lender,
+        'Fecha de préstamo': fmtDate(loan.createdAt),
+        'Estado': loan.returned ? 'Devuelto' : 'Pendiente',
+        'Recibió': loan.receivedBy || '',
+        'Fecha de devolución': loan.returned ? fmtDate(loan.returnedAt) : ''
+      }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [ {wch:18}, {wch:18}, {wch:18}, {wch:16}, {wch:12}, {wch:18}, {wch:16} ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Control de equipo');
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `control-de-equipo-${fecha}.xlsx`);
+  });
+
+  loadLoans();
+
+  setInterval(async () => {
+    if (hasUnsavedChanges) return;
+    try {
+      const fresh = await apiGetLoans();
+      if (JSON.stringify(fresh) !== JSON.stringify(loans)) {
+        loans = fresh;
+        render();
+      }
+    } catch (e) {
+      // Sin conexión momentánea; se reintenta en el siguiente ciclo.
+    }
+  }, 8000);
+})();
+</script>
+
+</body>
+</html>
