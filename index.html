@@ -492,6 +492,7 @@
   }
 
   addBtn.addEventListener('click', async () => {
+    if (addBtn.disabled) return;
     const borrower = borrowerInput.value.trim();
     const lender = lenderInput.value.trim();
     const projector = projectorInput.value.trim();
@@ -510,11 +511,16 @@
       createdAt: new Date().toISOString()
     };
     loans.push(newLoan);
-    await saveLoans();
     borrowerInput.value = '';
     lenderInput.value = '';
     projectorInput.value = '';
     render();
+
+    addBtn.disabled = true;
+    addBtn.textContent = 'Guardando…';
+    await saveLoans();
+    addBtn.disabled = false;
+    addBtn.textContent = 'Registrar préstamo';
   });
 
   exportBtn.addEventListener('click', () => {
