@@ -421,7 +421,7 @@
             <p class="proy-meta">${fmtDate(loan.createdAt)}</p>
             ${loan.returned
               ? `<p class="proy-meta proy-received">Recibió: ${escapeHtml(loan.receivedBy || 'Sin especificar')} · ${fmtDate(loan.returnedAt)}</p>`
-              : `<input type="text" class="proy-receiver-input" data-receiver-for="${loan.id}" placeholder="Nombre de quien recibe al devolver" /><p class="proy-receiver-error" data-error-for="${loan.id}">Falta ingresar el nombre de quien recibe.</p>`
+              : `<input type="text" class="proy-receiver-input" data-receiver-for="${loan.id}" placeholder="Nombre de quien recibe al devolver" value="${escapeHtml(loan.receivedBy || '')}" /><p class="proy-receiver-error" data-error-for="${loan.id}">Falta ingresar el nombre de quien recibe.</p>`
             }
             <span class="proy-status">${loan.returned ? 'Devuelto' : 'Pendiente'}</span>
             <div class="proy-actions">
@@ -452,9 +452,15 @@
             loan.returned = true;
             loan.returnedAt = new Date().toISOString();
           } else {
+            const confirmado = window.confirm(`¿Deshacer la devolución de "${loan.borrower}"? Volverá a quedar pendiente.`);
+            if (!confirmado) {
+              e.target.checked = true;
+              return;
+            }
             loan.returned = false;
             loan.returnedAt = null;
-            loan.receivedBy = null;
+            // No borramos loan.receivedBy: así el nombre queda precargado
+            // por si fue un error y solo necesitan volver a marcar el check.
           }
           await saveLoans();
           render();
