@@ -206,6 +206,12 @@
     cursor: pointer;
   }
   .proy-mini-btn.danger { color: var(--danger); border-color: var(--danger); }
+  .proy-mini-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    color: var(--ink-soft);
+    border-color: var(--paper-line);
+  }
 
   .proy-receiver-input {
     width: 100%;
@@ -287,23 +293,17 @@
     <span class="proy-count" id="proy-count"></span>
   </div>
 
-  <div style="padding: 0 18px 4px;">
-    <button class="proy-mini-btn" id="proy-export-btn" style="width: 100%; padding: 8px; font-size: 12px;">Descargar en Excel</button>
-  </div>
-
   <div id="proy-list-container">
     <div class="proy-loading">Cargando registros…</div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function() {
   const root = document.getElementById('proy-root');
   const listContainer = document.getElementById('proy-list-container');
   const countEl = document.getElementById('proy-count');
   const addBtn = document.getElementById('proy-add-btn');
-  const exportBtn = document.getElementById('proy-export-btn');
   const borrowerInput = document.getElementById('proy-borrower');
   const lenderInput = document.getElementById('proy-lender');
   const projectorInput = document.getElementById('proy-projector');
@@ -311,10 +311,12 @@
   // 👉 Pega aquí la URL de tu Google Apps Script publicado como Web App
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxheBA-w7SKNejyrUte-BLXm8yK9HPu_k1Eq6anifwUmmxYB0RVb7si3qi9Y-H4oi-WMQ/exec';
 
-  const STORAGE_KEY = 'loans-list';
   const syncStatusEl = document.getElementById('proy-sync-status');
   let loans = [];
-  let hasUnsavedChanges = false;
+  // Cola de registros pendientes de guardar, por id. Cada guardado toca
+  // solo SU fila en la hoja — nunca reescribe la lista completa — para que
+  // varios compañeros puedan usar la app al mismo tiempo sin pisarse.
+  let pendingQueue = new Map();
   let retryTimer = null;
 
   function fmtDate(iso) {
@@ -328,10 +330,10 @@
     return await res.json();
   }
 
-  async function apiSaveLoans(data) {
+  async function apiUpsertLoan(loan) {
     const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify({ action: 'upsert', loan })
     });
     if (!res.ok) throw new Error('network');
     return await res.json();
@@ -362,34 +364,42 @@
     }
   }
 
-  async function saveLoans() {
+  // Manda a guardar UN solo registro (no toda la lista) y lo deja en la
+  // cola hasta que se confirme que se guardó, reintentando si hace falta.
+  async function queueSave(loan) {
+    pendingQueue.set(loan.id, loan);
+    await flushQueue();
+  }
+
+  async function flushQueue() {
+    if (pendingQueue.size === 0) return;
     setSyncStatus('saving');
-    try {
-      await apiSaveLoans(loans);
-      hasUnsavedChanges = false;
-      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-      setSyncStatus('saved');
-    } catch (e) {
-      hasUnsavedChanges = true;
-      setSyncStatus('error');
-      scheduleRetry();
+    for (const loan of Array.from(pendingQueue.values())) {
+      try {
+        await apiUpsertLoan(loan);
+        pendingQueue.delete(loan.id);
+      } catch (e) {
+        setSyncStatus('error');
+        scheduleRetry();
+        return;
+      }
     }
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    setSyncStatus('saved');
   }
 
   function scheduleRetry() {
     if (retryTimer) return;
     retryTimer = setTimeout(() => {
       retryTimer = null;
-      if (hasUnsavedChanges) saveLoans();
+      flushQueue();
     }, 6000);
   }
 
-  window.addEventListener('online', () => {
-    if (hasUnsavedChanges) saveLoans();
-  });
+  window.addEventListener('online', () => flushQueue());
 
   window.addEventListener('beforeunload', (e) => {
-    if (hasUnsavedChanges) {
+    if (pendingQueue.size > 0) {
       e.preventDefault();
       e.returnValue = '';
     }
@@ -412,9 +422,11 @@
 
     listContainer.innerHTML = '<div class="proy-list">' + sorted.map(loan => {
       const proj = loan.projector ? ' · ' + escapeHtml(loan.projector) : '';
+      const hasValidName = (loan.receivedBy || '').trim().length > 0;
+      const checkDisabled = !loan.returned && !hasValidName;
       return `
         <div class="proy-card ${loan.returned ? 'returned' : ''}" data-id="${loan.id}">
-          <input type="checkbox" class="proy-check" ${loan.returned ? 'checked' : ''} data-id="${loan.id}" />
+          <input type="checkbox" class="proy-check" ${loan.returned ? 'checked' : ''} ${checkDisabled ? 'disabled' : ''} data-id="${loan.id}" />
           <div class="proy-info">
             <p class="proy-who">${escapeHtml(loan.borrower)}</p>
             <p class="proy-meta">Presta: ${escapeHtml(loan.lender)}${proj}</p>
@@ -425,7 +437,7 @@
             }
             <span class="proy-status">${loan.returned ? 'Devuelto' : 'Pendiente'}</span>
             <div class="proy-actions">
-              <button class="proy-mini-btn danger" data-delete="${loan.id}">Eliminar</button>
+              <button class="proy-mini-btn danger" data-delete="${loan.id}" ${loan.returned ? '' : 'disabled'}>Eliminar</button>
             </div>
           </div>
         </div>
@@ -462,7 +474,7 @@
             // No borramos loan.receivedBy: así el nombre queda precargado
             // por si fue un error y solo necesitan volver a marcar el check.
           }
-          await saveLoans();
+          await queueSave(loan);
           render();
         }
       });
@@ -472,8 +484,10 @@
       input.addEventListener('input', () => {
         const id = input.getAttribute('data-receiver-for');
         const errorEl = listContainer.querySelector(`[data-error-for="${id}"]`);
+        const checkbox = listContainer.querySelector(`.proy-check[data-id="${id}"]`);
         input.classList.remove('proy-input-error');
         if (errorEl) errorEl.classList.remove('show');
+        if (checkbox) checkbox.disabled = input.value.trim().length === 0;
       });
     });
 
@@ -485,7 +499,7 @@
         const confirmado = window.confirm(`¿Quitar de la lista el préstamo de "${nombre}"? Seguirá guardado como historial en la hoja de cálculo.`);
         if (!confirmado || !loan) return;
         loan.deleted = true;
-        await saveLoans();
+        await queueSave(loan);
         render();
       });
     });
@@ -524,44 +538,15 @@
 
     addBtn.disabled = true;
     addBtn.textContent = 'Guardando…';
-    await saveLoans();
+    await queueSave(newLoan);
     addBtn.disabled = false;
     addBtn.textContent = 'Registrar préstamo';
-  });
-
-  exportBtn.addEventListener('click', () => {
-    const activos = loans.filter(l => !l.deleted);
-    if (activos.length === 0) {
-      alert('Aún no hay registros para exportar.');
-      return;
-    }
-    if (typeof XLSX === 'undefined') {
-      alert('No se pudo cargar la librería de Excel. Revisa tu conexión e intenta de nuevo.');
-      return;
-    }
-    const rows = [...activos]
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-      .map(loan => ({
-        'Equipo': loan.projector || '',
-        'Prestado a': loan.borrower,
-        'Presta': loan.lender,
-        'Fecha de préstamo': fmtDate(loan.createdAt),
-        'Estado': loan.returned ? 'Devuelto' : 'Pendiente',
-        'Recibió': loan.receivedBy || '',
-        'Fecha de devolución': loan.returned ? fmtDate(loan.returnedAt) : ''
-      }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [ {wch:18}, {wch:18}, {wch:18}, {wch:16}, {wch:12}, {wch:18}, {wch:16} ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Control de equipo');
-    const fecha = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `control-de-equipo-${fecha}.xlsx`);
   });
 
   loadLoans();
 
   setInterval(async () => {
-    if (hasUnsavedChanges) return;
+    if (pendingQueue.size > 0) return;
     try {
       const fresh = await apiGetLoans();
       if (JSON.stringify(fresh) !== JSON.stringify(loans)) {
